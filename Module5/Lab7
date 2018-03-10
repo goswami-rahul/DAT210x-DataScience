@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan 13 22:46:20 2018
+
+@author: deadpool
+"""
+
+import random, math
+import pandas as pd
+import numpy as np
+import scipy.io
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, Normalizer, RobustScaler, MinMaxScaler, MaxAbsScaler
+from sklearn.decomposition import PCA
+from sklearn.manifold import Isomap
+from sklearn.neighbors import KNeighborsClassifier
+
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.style.use('ggplot') # Look Pretty
+
+
+# Leave this alone until indicated:
+Test_PCA = False
+
+def plotDecisionBoundary(model, X, y):
+    print("Plotting...")
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    padding = 0.1
+    resolution = 0.1
+
+    #(2 for benign, 4 for malignant)
+    colors = {2:'royalblue', 4:'lightsalmon'} 
+
+
+    # Calculate the boundaris
+    x_min, x_max = X[:, 0].min(), X[:, 0].max()
+    y_min, y_max = X[:, 1].min(), X[:, 1].max()
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+    x_min -= x_range * padding
+    y_min -= y_range * padding
+    x_max += x_range * padding
+    y_max += y_range * padding
+
+    # Create a 2D Grid Matrix. The values stored in the matrix
+    # are the predictions of the class at at said location
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, resolution),
+                         np.arange(y_min, y_max, resolution))
+
+    # What class does the classifier say?
+    Z = model.predict(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
+
+    # Plot the contour map
+    plt.contourf(xx, yy, Z, cmap=plt.cm.seismic)
+    plt.axis('tight')
+
+    # Plot your testing points as well...
+    for label in np.unique(y):
+        indices = np.where(y == label)
+        plt.scatter(X[indices, 0], X[indices, 1], c=colors[label], alpha=0.8)
+
+    p = model.get_params()
+    plt.title('K = ' + str(p['n_neighbors']))
+    plt.show()
+    
+X = pd.read_csv('Datasets/breast-cancer-wisconsin.data',
+                names = ['sample', 'thickness', 'size', 'shape', 'adhesion', 
+                         'epithelial', 'nuclei', 'chromatin', 'nucleoli', 
+                         'mitoses', 'status'], 
+                index_col='sample')
+X.reset_index(drop=True, inplace=True)
+X['nuclei'] = pd.to_numeric(X.nuclei, errors='coerce')
+X.nuclei.fillna(value=X.nuclei.mean(), inplace=True)
+y = X['status']
+X.drop(columns='status', inplace=True)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, 
+                                                    random_state=7)
+
+scaler = MinMaxScaler()
+scaler.fit(X_train)
+X_train = scaler.transform(X_train)
+X_test = scaler.transform(X_test)
+
+if Test_PCA:
+    print('Computing 2D Principle Components')
+    # TODO: Implement PCA here. Save your model into the variable 'model'.
+    # You should reduce down to two dimensions.
+    
+    # .. your code here ..
+    model = PCA(n_components=2, random_state=7)
+
+else:
+    print('Computing 2D Isomap Manifold')
+    # TODO: Implement Isomap here. Save your model into the variable 'model'
+    # Experiment with K values from 5-10.
+    # You should reduce down to two dimensions.
+
+    # .. your code here ..
+    model = Isomap(n_components=2, n_neighbors=10)
+
+model.fit(X_train)
+X_train = model.transform(X_train)
+X_test = model.transform(X_test)
+
+knmodel = KNeighborsClassifier(n_neighbors=5, weights='distance')
+knmodel.fit(X_train, y_train)
+print(knmodel.score(X_test, y_test))
+
+def run_k(n=10, w='distance'):
+    knmodel = KNeighborsClassifier(n_neighbors=n, weights=w)
+    knmodel.fit(X_train, y_train)
+    print(knmodel.score(X_test, y_test))
+
